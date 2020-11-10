@@ -3,7 +3,9 @@ import admin from 'firebase-admin';
 
 export enum Collection {
     screams = 'screams',
-    users = 'users'
+    users = 'users',
+    likes = 'likes',
+    comments = 'comments'
 };
 
 export interface Scream {
@@ -12,10 +14,31 @@ export interface Scream {
     createdAt: any
     body: string;
     likeCount: number;
-    commentCount: number
+    commentCount: number;
+    userImage?: string;
 }
 
-export interface User {
+export interface UserDetail {
+    website: string;
+    bio: string;
+    location: string;
+}
+
+export interface Comment {
+    id: string;
+    userHandle: string;
+    screamId: string;
+    body: string;
+    createdAt: string;
+}
+
+export interface Like {
+    id: string;
+    screamId: string;
+    userHandle: string;
+}
+
+export interface User extends Partial<UserDetail> {
     id: string;
     email: string;
     createdAt: string;
@@ -27,6 +50,7 @@ export interface User {
 export interface Request extends RequestExpress {
     user?: admin.auth.DecodedIdToken & {
         handle?: string;
+        imageUrl?: string;
     };
 }
 

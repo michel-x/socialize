@@ -27,11 +27,12 @@ const FBAuth: RequestHandler = async (req: Request, res, next) => {
 
         const userData = snapsUsers.docs[0].data() as Omit<User, "id">;
         req.user.handle = userData.handle;
+        req.user.imageUrl = userData.imageUrl;
         next();
 
         return;
     } catch (e) {
-        functions.logger.log(e);
+        functions.logger.error(e);
         return res.status(500).json({error: {code: 500, message: e.message}});
     } 
 };
