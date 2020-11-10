@@ -7,9 +7,10 @@ import os from 'os';
 import fs from 'fs';
 import {RequestHandler} from 'express';
 import {DateTime} from 'luxon';
-import {Collection, Request, User} from '../types';
+import {Collection, Request, User, UserDetail} from '../types';
 import {db, admin} from '../util/admin';
 import config from '../util/config';
+import {reduceUserDetails} from '../util/validators';
 
 
 firebase.initializeApp(config);
@@ -122,13 +123,18 @@ export const uploadImage: RequestHandler = async (req: Request, res) => {
     let imageToBeUploaded: {filepath: string; mimetype: string} = {filepath: '', mimetype: ''};
     
     busBoy.on('file', (fieldname, file, filename, encoding, mimetype) => {
-        console.log({filename, mimetype, fieldname});
-        const imageExtensionSplit = filename.split('.');
-        const imageExtension = imageExtensionSplit[imageExtensionSplit.length - 1];
-        imageFilename = `${Math.round(Math.random() * 10000000000)}.${imageExtension}`;
-        const filepath = path.join(os.tmpdir(), imageFilename);
-        imageToBeUploaded = {filepath, mimetype};
-        file.pipe(fs.createWriteStream(filepath));
+        if (mimetype !== 'image/jpeg' && mimetype !== 'image/png') {
+            return res.status(400).json({error: {code: 400, message: 'Wrong file type submitted'}});
+        } else {
+            console.log({filename, mimetype, fieldname});
+            const imageExtensionSplit = filename.split('.');
+            const imageExtension = imageExtensionSplit[imageExtensionSplit.length - 1];
+            imageFilename = `${Math.round(Math.random() * 10000000000)}.${imageExtension}`;
+            const filepath = path.join(os.tmpdir(), imageFilename);
+            imageToBeUploaded = {filepath, mimetype};
+            file.pipe(fs.createWriteStream(filepath));
+            return;
+        }
     });
 
     if (imageToBeUploaded) {
@@ -152,9 +158,46 @@ export const uploadImage: RequestHandler = async (req: Request, res) => {
 
                 return res.status(200).json({message: 'Image upload successfully'});
             } catch (e) {
+                functions.logger.error(e);
                 return res.status(500).json({error: {code: 500, message: e.message}});
             }
         });
     }
+
+    busBoy.end(req.body);
+};
+
+
+export const addUserDetails: RequestHandler = async (req: Request, res) => {
+    const userDetails: Partial<UserDetail> = reduceUserDetails(req.body);
+    try {
+        await db.collection(Collection.users)
+        .doc(req.user?.handle!)
+        .update(userDetails);
+        return res.status(200).json({message: 'Details added successfully'});
+    } catch (e) {
+        return res.status(500).json({error: {code: e.code, message: e.message}});
+    }
     
+};
+
+// Get own user details
+export const getAuthenticatedUser: RequestHandler = async (req: Request, res) => {
+    const userData: {credentials?: Omit<User, "id">; likes?: any[]} = {};
+
+    try {
+        const doc = await db.collection(Collection.users)
+            .doc(req.user?.handle!)
+            .get();
+        if (doc.exists) {
+            userData.credentials = doc.data() as Omit<User, "id">;
+            const docs = await db.collection(Collection.likes)
+                .where('userHandle', '==', req.user?.handle)
+                .get();
+            userData.likes = docs.docs.map((snap) => snap.data());
+        }
+        return res.status(200).json(userData);
+    } catch (e) {
+        return res.status(500).json({error: {code: e.code, message: e.message}});
+    }
 }
