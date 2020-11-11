@@ -7,7 +7,7 @@ import os from 'os';
 import fs from 'fs';
 import {RequestHandler} from 'express';
 import {DateTime} from 'luxon';
-import {Collection, Request, User, UserDetail} from '../types';
+import {Collection, Notification, Request, Scream, User, UserDetail} from '../types';
 import {db, admin} from '../util/admin';
 import config from '../util/config';
 import {reduceUserDetails} from '../util/validators';
@@ -74,7 +74,6 @@ export const signup: RequestHandler = async (req, res) => {
         functions.logger.error(e);
         if (e.code === 'auth/email-already-in-use') {
             res.status(500).json({error: {code: 400, message: 'Email is already in use'}, errors: {email: 'Email is already in use'}});
-
         } else {
             res.status(500).json({error: {code: 500, message: e.message}});
         }
@@ -109,11 +108,8 @@ export const login: RequestHandler = async (req, res) => {
         res.status(200).json({token});
 
     } catch (e) {
-        functions.logger.error(e);
-        if (e.code === 'auth/wrong-password') {
-            res.status(403).json({error: {code: 403, message: 'Wrong credentials, please try again'}});
-        }
-        res.status(500).json({error: {code: 500, message: e.message}});
+        console.error(e);
+        res.status(403).json({error: {code: 403, message: 'Wrong credentials, please try again'}});
     }
 }
 
@@ -172,8 +168,8 @@ export const addUserDetails: RequestHandler = async (req: Request, res) => {
     const userDetails: Partial<UserDetail> = reduceUserDetails(req.body);
     try {
         await db.collection(Collection.users)
-        .doc(req.user?.handle!)
-        .update(userDetails);
+            .doc(req.user?.handle!)
+            .update(userDetails);
         return res.status(200).json({message: 'Details added successfully'});
     } catch (e) {
         return res.status(500).json({error: {code: e.code, message: e.message}});
@@ -183,7 +179,7 @@ export const addUserDetails: RequestHandler = async (req: Request, res) => {
 
 // Get own user details
 export const getAuthenticatedUser: RequestHandler = async (req: Request, res) => {
-    const userData: {credentials?: Omit<User, "id">; likes?: any[]} = {};
+    const userData: {credentials?: Omit<User, "id">; likes?: any[]; notifications?: Notification[]} = {};
 
     try {
         const doc = await db.collection(Collection.users)
@@ -195,9 +191,57 @@ export const getAuthenticatedUser: RequestHandler = async (req: Request, res) =>
                 .where('userHandle', '==', req.user?.handle)
                 .get();
             userData.likes = docs.docs.map((snap) => snap.data());
+            const notificationSnapshots = await db.collection(Collection.notifications)
+                    .where('recipient', '==', req.user?.handle)
+                    .orderBy('createdAt', 'desc')
+                    .limit(10)
+                    .get();
+            userData.notifications = notificationSnapshots.docs.map((notificationSnapshot) => ({...notificationSnapshot.data(), id: notificationSnapshot.id} as Notification));
         }
         return res.status(200).json(userData);
     } catch (e) {
+        console.error(e);
         return res.status(500).json({error: {code: e.code, message: e.message}});
     }
 }
+
+// Get any user's details
+export const getUserDetails: RequestHandler = async (req: Request, res) => {
+        try {
+            const userSnapshot = await db.collection(Collection.users)
+                .doc(req.params.handle)
+                .get();
+            if (userSnapshot.exists) {
+                const userData: User = {...userSnapshot.data(), id: userSnapshot.id} as User;
+                const screamSnapshots = await db.collection(Collection.screams)
+                    .where('userHandle', '==', req.params.handle)
+                    .orderBy('createdAt', 'desc')
+                    .get();
+                const screamsData: Scream[] = screamSnapshots.docs.map((screamSnapshot) => ({...screamSnapshot.data(), id: screamSnapshot.id} as Scream));
+                return res.status(200).json({user: userData, screams: screamsData});
+            } else {
+                return res.status(404).json({error: {code: 404, message: 'User not found'}});
+            }
+        } catch (e) {
+            console.error(e);
+            return res.status(500).json({error: {code: e.code || 500, message: e.message}});
+        }
+    };
+
+
+    export const markNotificationsRead: RequestHandler = async (req: Request, res) => {
+        try {
+            const batch = db.batch();
+            req.body.forEach((notificationId: string) => {
+                const notifications = db.collection(Collection.notifications)
+                    .doc(notificationId);
+                batch.update(notifications, {read: true} as Partial<Notification>);
+            });
+
+            await batch.commit();
+            return res.status(200).json({message: 'Notifications marked read'});
+        } catch (e) {
+            console.error(e);
+            return res.status(500).json({error: {code: e.code || 500, message: e.message}});
+        }
+    };
