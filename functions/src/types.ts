@@ -5,7 +5,8 @@ export enum Collection {
     screams = 'screams',
     users = 'users',
     likes = 'likes',
-    comments = 'comments'
+    comments = 'comments',
+    notifications = 'notifications'
 };
 
 export interface Scream {
@@ -36,6 +37,16 @@ export interface Like {
     id: string;
     screamId: string;
     userHandle: string;
+}
+
+export interface Notification {
+    id: string;
+    recipient: string;
+    sender: string;
+    read: boolean;
+    screamId: string;
+    type: 'like' | 'comment';
+    createdAt: string;
 }
 
 export interface User extends Partial<UserDetail> {

@@ -59,7 +59,7 @@ export const getScream: RequestHandler = async (req: Request, res) => {
         
         const commentDocs = await db.collection(Collection.comments)
             .where('screamId', '==', req.params.screamId)
-            // .orderBy('createdAt', 'desc')
+            .orderBy('createdAt', 'desc')
             .get();
         const commentsData: Comment[] = commentDocs.docs.map((doc) => ({...doc.data(), id: doc.id} as Comment));
 
@@ -73,7 +73,7 @@ export const getScream: RequestHandler = async (req: Request, res) => {
 export const commentOnScream: RequestHandler = async (req: Request, res) => {
 
     if (req.body.body.trim() === '') {
-        return res.status(400).json({error: {code: 400, message: 'Must not be empty'}});
+        return res.status(400).json({error: {code: 400, message: 'Must not be empty'}, errors: {comment: 'Must not be empty'}});
     }
 
     const newComment = {
