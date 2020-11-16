@@ -2,6 +2,7 @@ import * as functions from 'firebase-functions';
 import 'firebase/auth';
 import 'firebase/firestore';
 import express from 'express';
+import cors from 'cors';
 import {getAllScreams, postOneScream, getScream, commentOnScream, likeScream, unLikeScream, deleteScream} from './handlers/screams';
 import {signup, login, uploadImage, addUserDetails, getAuthenticatedUser, getUserDetails, markNotificationsRead} from './handlers/users';
 import FBAuth from './util/FBAuth';
@@ -11,9 +12,10 @@ import { DateTime } from 'luxon';
 
 
 const app = express();
+app.use(cors());
 
 // Screams routes
-app.get('/screams', FBAuth, getAllScreams);
+app.get('/screams', getAllScreams);
 app.post('/screams', FBAuth, postOneScream);
 app.get('/screams/:screamId', FBAuth, getScream);
 app.post('/screams/:screamId/comments', FBAuth, commentOnScream);
