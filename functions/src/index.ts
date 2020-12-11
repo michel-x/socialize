@@ -13,6 +13,7 @@ import { DateTime } from 'luxon';
 
 const app = express();
 app.use(cors());
+app.use(express.json());
 
 // Screams routes
 app.get('/screams', getAllScreams);

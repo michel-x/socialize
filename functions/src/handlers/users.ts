@@ -87,6 +87,7 @@ export const login: RequestHandler = async (req, res) => {
             email: req.body.email,
             password: req.body.password
         };
+        console.log(req.body);
     
         const schema = Joi.object({
             email: Joi.string().email({tlds: {allow: false}}).required(),
